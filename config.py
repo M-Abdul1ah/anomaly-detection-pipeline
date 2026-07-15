@@ -1,0 +1,39 @@
+"""
+Shared configuration for the anomaly detection pipeline.
+Keep every path/threshold/constant here so no module hardcodes it.
+"""
+
+from pathlib import Path
+
+# ---- paths ----
+ROOT_DIR = Path(__file__).resolve().parent
+RAW_DATA_PATH = ROOT_DIR / "data" / "raw" / "KDDTrain+.txt"
+PROCESSED_DATA_DIR = ROOT_DIR / "data" / "processed"
+
+# ---- NSL-KDD schema (41 features + label + difficulty) ----
+# Real dataset column names, in order. Used by ingestion.py whether reading
+# the real file or generating the synthetic fallback, so downstream code
+# never has to know which one it got.
+KDD_COLUMNS = [
+    "duration", "protocol_type", "service", "flag", "src_bytes", "dst_bytes",
+    "land", "wrong_fragment", "urgent", "hot", "num_failed_logins", "logged_in",
+    "num_compromised", "root_shell", "su_attempted", "num_root",
+    "num_file_creations", "num_shells", "num_access_files", "num_outbound_cmds",
+    "is_host_login", "is_guest_login", "count", "srv_count", "serror_rate",
+    "srv_serror_rate", "rerror_rate", "srv_rerror_rate", "same_srv_rate",
+    "diff_srv_rate", "srv_diff_host_rate", "dst_host_count", "dst_host_srv_count",
+    "dst_host_same_srv_rate", "dst_host_diff_srv_rate",
+    "dst_host_same_src_port_rate", "dst_host_srv_diff_host_rate",
+    "dst_host_serror_rate", "dst_host_srv_serror_rate", "dst_host_rerror_rate",
+    "dst_host_srv_rerror_rate", "label", "difficulty",
+]
+
+CATEGORICAL_COLUMNS = ["protocol_type", "service", "flag"]
+
+# ---- risk thresholds (Phase 6) ----
+WARNING_THRESHOLD = 0.5
+CRITICAL_THRESHOLD = 0.8
+
+# ---- streaming simulation (Phase 1) ----
+SYNTHETIC_ROWS = 500
+STREAM_BATCH_SIZE = 50
