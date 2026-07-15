@@ -1,31 +1,65 @@
 """
-PHASE 7 — ALERT MANAGEMENT
+PHASE 7 - ALERT MANAGEMENT
 
-Real job: turn Warning/Critical records into alerts, correlate and
-de-duplicate them so one problem doesn't spam many alerts, assign severity,
-route notifications, apply an escalation policy, and feed a dashboard.
-
-STATUS: stub — currently just prints one line per Warning/Critical record.
-
-TODO (build after Phase 6 is producing real classifications):
-  1. Add de-duplication: group alerts by device/_record_id within a time
-     window so repeated flags on the same device become one alert.
-  2. Write alerts to a small SQLite table (data/processed/alerts.db) instead
-     of just printing, so the dashboard (Streamlit, Phase 7/8) has something
-     to read.
-  3. Add a Streamlit page that reads that table and displays it live —
-     this is the easiest "impressive demo" piece to show your supervisor.
+Turns Warning/Critical records into alerts, de-duplicates repeated alerts
+on the same service within a batch, and logs every alert to a small
+SQLite database so there's a persistent record (a stand-in for a real
+dashboard's data source).
 """
 
+import sqlite3
+from pathlib import Path
+
 import pandas as pd
+
+_DB_PATH = Path(__file__).resolve().parent.parent / "data" / "processed" / "alerts.db"
+
+
+def _init_db():
+    _DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(_DB_PATH)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS alerts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            service TEXT,
+            risk_level TEXT,
+            anomaly_score REAL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.commit()
+    return conn
+
+
+def _log_alerts(alerts: pd.DataFrame):
+    if alerts.empty:
+        return
+    conn = _init_db()
+    for _, row in alerts.iterrows():
+        conn.execute(
+            "INSERT INTO alerts (service, risk_level, anomaly_score) VALUES (?, ?, ?)",
+            (str(row.get("service", "unknown")), row["risk_level"], float(row["anomaly_score"])),
+        )
+    conn.commit()
+    conn.close()
 
 
 def generate_alerts(classified: pd.DataFrame) -> pd.DataFrame:
     """Entry point called by the orchestrator for Phase 7."""
-    alerts = classified[classified["risk_level"] != "Normal"]
+    alerts = classified[classified["risk_level"] != "Normal"].copy()
+
+    if not alerts.empty and "service" in alerts.columns:
+        before = len(alerts)
+        alerts = alerts.drop_duplicates(subset=["service", "risk_level"])
+        deduped = before - len(alerts)
+        if deduped:
+            print(f"[alerting] de-duplicated {deduped} repeated alerts")
+
+    _log_alerts(alerts)
+
     for _, row in alerts.iterrows():
-        print(f"[alerting] (stub) ALERT record={row.get('_record_id')} "
+        print(f"[alerting] ALERT service={row.get('service', 'unknown')} "
               f"level={row['risk_level']} score={row['anomaly_score']:.3f}")
     if alerts.empty:
-        print("[alerting] (stub) no Warning/Critical records this batch")
+        print("[alerting] no Warning/Critical records this batch")
     return alerts
