@@ -1,0 +1,429 @@
+====================================================================================
+              AI-BASED NETWORK / MODEM ANOMALY DETECTION SYSTEM
+                     DOCUMENTATION AND ARCHITECTURE
+====================================================================================
+
+
+====================================================================================
+PART A - WORKFLOW DOCUMENTATION
+====================================================================================
+
+--------------------------------------------------------------------------
+1. PURPOSE AND SCOPE
+--------------------------------------------------------------------------
+Internet Service Providers manage large numbers of modems and network
+devices that continuously produce telemetry, performance metrics, and
+logs. Manually watching this data for problems does not scale, and simple
+static thresholds miss slow or unusual patterns of failure and misuse.
+
+This document describes an AI-based pipeline that automatically:
+  - ingests device data
+  - understands it in the context of the wider network using a knowledge
+    graph
+  - detects anomalies with a mix of statistical and machine-learning
+    methods
+  - scores and classifies risk
+  - raises alerts
+  - drives remediation
+  - continuously improves itself using feedback
+
+Part A explains what the system does, phase by phase, so it can be
+understood and reviewed. Part B is an architecture decision record that
+proposes how to actually build it, using only free and open-source tools.
+
+
+--------------------------------------------------------------------------
+2. SYSTEM OVERVIEW
+--------------------------------------------------------------------------
+The pipeline is organized into nine phases plus two supporting layers that
+run across all phases: a persistent MemGraph knowledge graph that stores
+context, and an MLOps infrastructure layer that manages the
+machine-learning lifecycle.
+
+Data flows in a loop: it is ingested, cleaned, enriched with graph
+context, converted into features, scored for anomalies, classified by
+risk, alerted on, acted upon, and finally used to retrain and improve the
+models before the cycle repeats.
+
+  PHASE  NAME                          MAIN QUESTION IT ANSWERS
+  -----  ----------------------------  -------------------------------------
+  1      Data Ingestion                What raw data is coming in, and
+                                        from where?
+  2      Data Preprocessing            Is the data clean, consistent, and
+                                        usable?
+  3      Context Retrieval             What do we already know about this
+                                        device / network?
+  4      Feature Engineering           What patterns should the models
+                                        actually look at?
+  5      Anomaly Detection Engine      Does this look abnormal,
+                                        statistically and behaviourally?
+  6      Risk Scoring & Classification How serious is it, and can we trust
+                                        the signal?
+  7      Alert Management              Who needs to know, and how
+                                        urgently?
+  8      Response & Remediation        What do we do about it,
+                                        automatically or manually?
+  9      Continuous Learning & MLOps   How does the system get better over
+                                        time?
+
+
+--------------------------------------------------------------------------
+3. DETAILED PHASE DOCUMENTATION
+--------------------------------------------------------------------------
+
+PHASE 1 - DATA INGESTION
+-------------------------
+Real-time streams are received from every relevant source around a
+device or session:
+  - Device telemetry and modem performance metrics
+  - Network traffic packets and SNMP / syslog data
+  - Event logs and user activity
+  - External threat intelligence feeds
+
+Each incoming record is tagged so the system knows exactly which device,
+modem, or user session it belongs to. This identifier is what lets every
+later phase look up the right context.
+
+PHASE 2 - DATA PREPROCESSING
+------------------------------
+Raw data is rarely analysis-ready. This phase:
+  - parses and validates incoming records
+  - maps them onto a common schema
+  - handles missing values
+  - removes duplicates
+  - filters noise
+  - synchronizes timestamps across sources
+  - normalizes and scales values so later statistical and ML methods
+    behave consistently
+
+A data-quality check gates what is allowed to continue downstream.
+
+PHASE 3 - CONTEXT RETRIEVAL (MEMGRAPH)
+----------------------------------------
+Before anything is judged "normal" or "anomalous," the system queries the
+MemGraph knowledge graph for everything already known about this device
+and its neighbourhood:
+  - device profile
+  - historical performance
+  - previous incidents
+  - connected devices
+  - position in the network topology
+  - reputation
+  - relevant threat intelligence
+  - applicable policy and compliance rules
+
+This context is what lets the same raw signal be interpreted differently
+for, say, a device with a history of instability versus a normally stable
+one.
+
+PHASE 4 - FEATURE ENGINEERING
+--------------------------------
+Cleaned, context-aware data is converted into the actual inputs the
+models use:
+  - statistical features
+  - time-series features
+  - behavioural features
+  - rolling-window aggregations
+  - trend and seasonal patterns
+  - cross-device correlations
+
+A feature-selection step keeps only what is informative, which keeps the
+models fast and reduces false positives.
+
+PHASE 5 - ANOMALY DETECTION ENGINE
+-------------------------------------
+Three complementary families of detectors run in parallel rather than
+relying on one technique:
+
+  Statistical detection    - Z-score, IQR, moving average, EWMA
+  ML anomaly detection     - Isolation Forest, Autoencoder,
+                              One-Class SVM, LSTM
+  Behaviour detection      - rule engine, threshold rules,
+                              pattern matching, expert rules
+
+Their outputs are checked against the MemGraph context (graph
+relationship analysis) so that, for example, a known firmware bug
+pattern is not mistaken for a real attack. An ensemble decision engine
+then combines all signals into one verdict.
+
+PHASE 6 - RISK SCORING & CLASSIFICATION
+------------------------------------------
+The raw anomaly score is enriched with context, given a confidence
+estimate, checked against a false-positive predictor, and turned into a
+final risk score with a priority rank. Comparing this score against
+thresholds classifies the event as NORMAL, WARNING, or CRITICAL.
+
+PHASE 7 - ALERT MANAGEMENT
+-----------------------------
+Warning and Critical events generate alerts, which are:
+  - correlated and de-duplicated, so one underlying problem does not spam
+    multiple alerts
+  - assigned a severity
+  - routed to the right channel / person
+  - escalated automatically if nothing happens in time
+  - visualised on a dashboard
+
+PHASE 8 - RESPONSE & REMEDIATION
+------------------------------------
+Two response paths exist side by side:
+
+  Automated response         Manual investigation
+  ---------------------      -----------------------
+  Restart modem               Root cause analysis
+  Reset interface              ISP investigation
+  QoS adjustment               Incident reporting
+  Traffic blocking             Engineer review
+  Configuration rollback       Ticket generation
+  Device isolation             Customer support
+
+Both paths feed back into user / ISP feedback, which becomes training
+signal for the next phase.
+
+PHASE 9 - CONTINUOUS LEARNING & MLOPS
+-----------------------------------------
+This is the loop that makes the system a learning system rather than a
+static rule set:
+  - detection performance is evaluated
+  - feedback is collected
+  - active and reinforcement learning refine the models
+  - rules are optimized
+  - the feature store is updated
+  - models are retrained, validated, registered, and checked for drift
+  - the MemGraph knowledge base is updated with new facts
+  - the improved system is deployed through CI/CD before the next
+    monitoring cycle begins at Phase 1
+
+SUPPORTING LAYER - MEMGRAPH KNOWLEDGE GRAPH
+-----------------------------------------------
+A persistent graph store that is read during context retrieval,
+detection, scoring, and remediation, and updated during the learning
+phase. It holds:
+  - device profiles and user relationships
+  - historical baselines
+  - network topology
+  - past incidents and their root causes
+  - device reputation
+  - threat intelligence
+  - compliance and security policy
+  - a temporal view of the network
+  - learned detection patterns
+
+A graph is used here rather than plain tables because most of what
+matters - "which devices are connected to this one," "what happened near
+this device before" - is fundamentally about relationships, which graphs
+represent far more naturally than joins across flat tables.
+
+SUPPORTING LAYER - MLOPS INFRASTRUCTURE
+--------------------------------------------
+Runs underneath every phase to keep the ML side production-grade:
+  - data versioning
+  - feature store
+  - experiment tracking
+  - model registry
+  - model validation
+  - model deployment
+  - online monitoring
+  - drift detection
+  - automated retraining
+  - continuous delivery
+
+
+====================================================================================
+PART B - ARCHITECTURE DECISION RECORD
+====================================================================================
+ADR-001: Implementation Architecture for the Anomaly Detection Pipeline
+
+--------------------------------------------------------------------------
+1. STATUS
+--------------------------------------------------------------------------
+Proposed - pending review before implementation begins.
+
+--------------------------------------------------------------------------
+2. CONTEXT
+--------------------------------------------------------------------------
+The workflow in Part A describes an enterprise-scale pipeline with
+streaming ingestion, a graph database, an ensemble of ML models, and full
+MLOps tooling. Built at that scale, it would normally use paid cloud
+infrastructure (managed Kafka, managed graph DB, cloud GPUs, hosted
+MLflow, etc.).
+
+This is a zero-budget student/solo project, built on a single laptop
+without Docker, over a short timeframe. The architecture must therefore
+be scaled down to something that runs entirely on free and open-source
+software, while still preserving the same nine-phase structure so it can
+later be scaled up without a redesign.
+
+--------------------------------------------------------------------------
+3. DECISION
+--------------------------------------------------------------------------
+Build the system as a MODULAR MONOLITH: one codebase where each of the
+nine phases is its own module/function with a clean interface, connected
+in sequence by a lightweight orchestrator, rather than as separate
+networked microservices.
+
+Simulate real-time streaming with a Python generator/queue instead of a
+message broker for the first version. This keeps the whole system
+runnable with a single command on a laptop, while each module's
+interface is designed so it could later be lifted out into its own
+service (for example, behind Kafka) without changing its internal logic.
+
+--------------------------------------------------------------------------
+4. OPTIONS CONSIDERED
+--------------------------------------------------------------------------
+
+  DIMENSION                  OPTION A:              OPTION B:              OPTION C:
+                              Full microservices      Modular monolith       Single script /
+                              (Kafka + services)       (RECOMMENDED)          notebook
+  --------------------------  ----------------------  ----------------------  ----------------------
+  Setup effort                High - Docker, Kafka,    Low - one codebase      Very low, but messy
+                               service mesh
+  Cost                        Free tools, but heavy    Free, laptop-friendly   Free
+                               on RAM/CPU
+  Matches the 9-phase         Yes, most faithfully     Yes, module per phase   Poorly - hard to
+  design                                                                        separate phases
+  Good for showing early      Slow to reach a demo     Fast - working demo     Fast but not
+  progress                                              early                  presentable as
+                                                                                 "architecture"
+  Upgrade path later          Already there            Clean - modules         Needs a rewrite
+                                                         become services
+
+--------------------------------------------------------------------------
+5. TRADE-OFF ANALYSIS
+--------------------------------------------------------------------------
+Option A is the most "correct" long-term architecture but is overkill
+for a first working version and risks time being spent on infrastructure
+rather than the actual ML/graph logic the project is meant to
+demonstrate. Option C is fast but does not demonstrate architectural
+thinking and becomes unmaintainable once nine phases are involved.
+
+Option B is chosen because it keeps the same phase boundaries and data
+contracts as the target architecture, so the project can be demoed and
+evaluated, and only later "grown" into microservices if the project
+continues beyond its current scope.
+
+--------------------------------------------------------------------------
+6. CONSEQUENCES
+--------------------------------------------------------------------------
+  - Easier: local development, debugging, demoing, no infrastructure
+    cost.
+  - Harder: true real-time concurrency and horizontal scaling are not
+    demonstrated until a later phase.
+  - To revisit: if the project is extended later, Phase 1 (ingestion) and
+    Phase 5 (detection) are the two modules most worth extracting into
+    standalone services first.
+
+--------------------------------------------------------------------------
+7. PROPOSED TECHNOLOGY STACK (100% FREE / OPEN-SOURCE)
+--------------------------------------------------------------------------
+Every tool below is free for individual use - either open-source
+software run locally, or a generous free tier. None require payment or
+Docker.
+
+  PIPELINE LAYER              TOOL                                WHY THIS ONE
+  ---------------------------  ----------------------------------  ---------------------------------
+  Ingestion (simulated         Python asyncio / queue, or           No broker needed to start; MQTT
+  stream)                      Mosquitto MQTT (OSS)                 is a drop-in free upgrade later
+  Preprocessing                pandas, NumPy                        Standard, free, well documented
+  Context / Knowledge Graph    NetworkX (in-memory) first,          NetworkX needs zero setup;
+                                Memgraph Community Edition later     Memgraph has a free Community
+                                                                      edition when Docker is available
+  Feature Engineering          pandas, tsfresh                      tsfresh auto-generates
+                                                                      time-series features, free
+  Statistical Detection        SciPy, statsmodels                   Z-score / IQR / EWMA are simple
+                                                                      to implement directly
+  ML Anomaly Detection         scikit-learn (Isolation Forest,      All open-source; PyOD bundles
+                                One-Class SVM), PyOD,                many anomaly algorithms behind
+                                PyTorch / Keras (Autoencoder, LSTM)  one API
+  Experiment Tracking          MLflow (self-hosted, free)            Runs locally, no server cost
+  Model Registry                MLflow Model Registry                 Comes bundled with MLflow
+  Orchestration / Scheduling    Plain cron / Python scheduler,        Start simple; adopt Prefect
+                                 or Prefect (free tier)                only if retries/monitoring
+                                                                        are needed
+  Storage                       SQLite (prototype) -> PostgreSQL      SQLite needs no setup;
+                                 (free, local)                        PostgreSQL is the free upgrade
+                                                                        for concurrent access
+  Alerting / Dashboard           Streamlit (free)                     Fastest way to get a working
+                                                                        dashboard demo
+  Version Control & CI/CD        Git + GitHub, GitHub Actions          Free for public repos and
+                                 (free minutes)                        ample free minutes privately
+  Training Compute                Google Colab (free tier GPU)         Free GPU access when local
+                                                                         training is too slow
+
+--------------------------------------------------------------------------
+8. HIGH-LEVEL ARCHITECTURE DIAGRAM
+--------------------------------------------------------------------------
+Same nine phases as Part A, mapped onto the concrete free-tool stack
+above:
+
+ +----------------------------------------------------------------+
+ |  SIMULATED STREAM SOURCE       (Python generator / MQTT)        |
+ +--------------------------------+---------------------------------+
+                                   |
+                                   v
+ +----------------------------------------------------------------+
+ |  PREPROCESSING MODULE          (pandas / NumPy)                 |
+ +--------------------------------+---------------------------------+
+                                   |
+                                   v
+ +----------------------------------------------------------------+     +----------------------------+
+ |  FEATURE ENGINEERING           (pandas / tsfresh)                |<--|  NETWORKX / MEMGRAPH        |
+ +--------------------------------+---------------------------------+     |  (context, history,         |
+                                   |                                        |   device reputation)        |
+                                   v                                        +--------------+---------------+
+ +----------------------------------------------------------------+                       ^
+ |  DETECTION ENGINE                                                |                       |
+ |  Statistical (SciPy) + ML (scikit-learn / PyOD) + Rules          |-----------------------+
+ +--------------------------------+---------------------------------+
+                                   |
+                                   v
+ +----------------------------------------------------------------+
+ |  SCORING & CLASSIFICATION       (Normal / Warning / Critical)    |
+ +--------------------------------+---------------------------------+
+                                   |
+                                   v
+ +----------------------------------------------------------------+
+ |  ALERTING & DASHBOARD           (Streamlit)                      |
+ +--------------------------------+---------------------------------+
+                                   |
+                                   v
+ +----------------------------------------------------------------+
+ |  RESPONSE (auto rules) + FEEDBACK LOG   (SQLite / PostgreSQL)    |
+ +--------------------------------+---------------------------------+
+                                   |
+                                   v
+ +----------------------------------------------------------------+
+ |  RETRAINING & TRACKING          (MLflow, GitHub Actions)         |
+ +----------------------------------------------------------------+
+
+--------------------------------------------------------------------------
+9. IMPLEMENTATION ROADMAP
+--------------------------------------------------------------------------
+
+  MILESTONE                          TARGET DELIVERABLE                     TOOLS USED
+  ----------------------------------  --------------------------------------  ------------------------
+  1. Prototype ingestion +            Simulated stream feeding a cleaned      Python, pandas
+     preprocessing                    pandas DataFrame
+  2. Feature engineering +            Isolation Forest / Z-score flags        pandas, scikit-learn,
+     basic detection                  anomalies on sample data                SciPy
+  3. Context layer integration        Graph lookups enrich each event         NetworkX -> Memgraph
+                                       before scoring
+  4. Scoring, alerting, dashboard     Working demo: risk score -> alert ->    Streamlit
+                                       visible on dashboard
+  5. Feedback + retraining loop       Manual feedback triggers a logged       MLflow, SQLite /
+                                       model retrain                          PostgreSQL
+  6. Polish + CI                      Automated tests run on every push       GitHub Actions
+
+--------------------------------------------------------------------------
+10. ACTION ITEMS
+--------------------------------------------------------------------------
+  - Confirm the phase-by-phase scope above before coding.
+  - Set up a repository with the module layout mirroring the 9 phases.
+  - Build Milestone 1 (ingestion + preprocessing) first, using a small
+    public network-traffic or IoT-telemetry dataset as sample data.
+  - Decide NetworkX vs Memgraph for the first context-layer
+    implementation based on available time and whether Docker becomes
+    available.
+
+====================================================================================
+                                  END OF DOCUMENT
+====================================================================================

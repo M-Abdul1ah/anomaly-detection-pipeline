@@ -1,0 +1,230 @@
+====================================================================================
+     AI-BASED NETWORK / MODEM ANOMALY DETECTION SYSTEM
+     STEP-BY-STEP DEVELOPMENT PLAN WITH GITHUB (1 WEEK)
+====================================================================================
+
+--------------------------------------------------------------------------
+0. WHY GITHUB IS PART OF THE PLAN
+--------------------------------------------------------------------------
+Building day by day on GitHub, with one commit per completed piece of
+work, gives a visible, timestamped record of the development process -
+exactly what is useful to show a supervisor: not just the final code, but
+the order it was built in and the reasoning behind each step (via commit
+messages).
+
+  - ONE repository for the whole project.
+  - ONE branch per phase/module ("feature branches"), merged into main
+    once that module works.
+  - Commit messages that state WHAT changed and WHY, not just "update".
+  - main branch should always be runnable - never push broken code
+    directly to it.
+
+
+--------------------------------------------------------------------------
+1. ONE-TIME REPOSITORY SETUP (before Day 1)
+--------------------------------------------------------------------------
+  1. Create a new repository on GitHub, e.g.:
+       anomaly-detection-pipeline
+  2. Clone it locally:
+       git clone https://github.com/<your-username>/anomaly-detection-pipeline.git
+       cd anomaly-detection-pipeline
+  3. Copy the existing project skeleton into this folder (README.md,
+     config.py, requirements.txt, src/, tests/, data/).
+  4. Add a .gitignore so venv/, __pycache__/, and the dataset file are not
+     committed:
+       venv/
+       __pycache__/
+       *.pyc
+       data/raw/KDDTrain+.txt
+  5. First commit:
+       git add .
+       git commit -m "Initial project skeleton: 9-phase pipeline structure, ingestion and preprocessing functional"
+       git push origin main
+  6. Confirm the skeleton runs from a clean clone:
+       python -m venv venv
+       source venv/bin/activate
+       pip install -r requirements.txt
+       python -m src.pipeline
+
+
+--------------------------------------------------------------------------
+2. DAY-BY-DAY PLAN
+--------------------------------------------------------------------------
+
+DAY 1 - STATISTICAL + ML ANOMALY DETECTORS
+--------------------------------------------
+  Branch:
+      git checkout -b feature/detection-core
+
+  Work:
+    - Implement Z-score based statistical scoring in detection.py
+    - Implement Isolation Forest based ML scoring in detection.py
+    - Run tests/test_pipeline.py to confirm the pipeline still runs
+
+  Commits (commit after each working piece, not just at the end):
+      git add src/detection.py
+      git commit -m "Add Z-score statistical anomaly detector"
+      git add src/detection.py
+      git commit -m "Add Isolation Forest ML anomaly detector"
+
+  End of day:
+      git push origin feature/detection-core
+      Open a Pull Request on GitHub: "Detection core: statistical + ML detectors"
+      Merge into main once it runs cleanly.
+
+
+DAY 2 - RULE-BASED DETECTOR + ENSEMBLE + THRESHOLD TUNING
+-------------------------------------------------------------
+  Branch:
+      git checkout main
+      git pull
+      git checkout -b feature/detection-ensemble
+
+  Work:
+    - Add 1-2 hand-written behaviour rules in detection.py
+    - Combine statistical + ML + rule scores into one ensemble score
+    - Tune WARNING_THRESHOLD / CRITICAL_THRESHOLD in config.py against the
+      real score distribution
+
+  Commits:
+      git commit -m "Add rule-based behaviour detector"
+      git commit -m "Combine detectors into ensemble anomaly score"
+      git commit -m "Tune risk thresholds based on observed score distribution"
+
+  End of day:
+      git push origin feature/detection-ensemble
+      Merge PR into main.
+
+
+DAY 3 - CONTEXT GRAPH (NETWORKX)
+------------------------------------
+  Branch:
+      git checkout -b feature/context-graph
+
+  Work:
+    - Build a NetworkX graph of devices/services/connections in
+      context.py
+    - Implement get_context() to return real device history/relationships
+      instead of the placeholder
+
+  Commits:
+      git commit -m "Build NetworkX graph from device/service relationships"
+      git commit -m "Implement real context lookups in get_context()"
+
+  End of day:
+      git push origin feature/context-graph
+      Merge PR into main.
+
+
+DAY 4 - FEATURE ENGINEERING + WIRE CONTEXT INTO DETECTION
+---------------------------------------------------------------
+  Branch:
+      git checkout -b feature/feature-engineering
+
+  Work:
+    - Add rolling-window aggregates and basic time-series features in
+      feature_engineering.py
+    - Use Phase 3's context output to adjust/validate Phase 5's detection
+      score (graph context validation step)
+
+  Commits:
+      git commit -m "Add rolling-window and time-series features"
+      git commit -m "Use graph context to validate anomaly detection results"
+
+  End of day:
+      git push origin feature/feature-engineering
+      Merge PR into main.
+
+
+DAY 5 - ALERTING + RESPONSE
+--------------------------------
+  Branch:
+      git checkout -b feature/alerting-response
+
+  Work:
+    - Add alert de-duplication and log alerts to a SQLite table in
+      alerting.py
+    - Implement basic automated-vs-manual response routing in
+      response.py
+
+  Commits:
+      git commit -m "Log deduplicated alerts to SQLite"
+      git commit -m "Add automated vs manual response routing"
+
+  End of day:
+      git push origin feature/alerting-response
+      Merge PR into main.
+
+
+DAY 6 - MLOPS LOGGING + FULL PIPELINE TEST ON REAL DATA
+------------------------------------------------------------
+  Branch:
+      git checkout -b feature/mlops-and-real-data
+
+  Work:
+    - Wrap model training in an MLflow run in mlops.py (log_metric,
+      log_model)
+    - Download the real NSL-KDD file into data/raw/ and re-run the full
+      pipeline against it instead of the synthetic fallback
+    - Fix any issues that only show up with real data
+
+  Commits:
+      git commit -m "Add MLflow experiment tracking to training step"
+      git commit -m "Validate full pipeline against real NSL-KDD dataset"
+
+  End of day:
+      git push origin feature/mlops-and-real-data
+      Merge PR into main.
+
+
+DAY 7 - POLISH, TAG A RELEASE, PREPARE THE DEMO
+-----------------------------------------------------
+  Work:
+    - Fix any remaining bugs found while testing end to end
+    - Update README.md with final setup instructions and a short
+      "how this maps to the architecture doc" section
+    - Tag a release so there is a clear "this is the version I'm
+      presenting" marker:
+        git checkout main
+        git pull
+        git tag -a v1.0 -m "Version presented to supervisor"
+        git push origin v1.0
+
+  What to actually show your supervisor:
+    - The repository's commit history (Insights > Network, or just the
+      commit log) as evidence of day-by-day, phase-by-phase progress
+    - The v1.0 tag / release
+    - A live run: python -m src.pipeline
+    - The Documentation and Architecture file, alongside the code
+
+
+--------------------------------------------------------------------------
+3. COMMIT MESSAGE CONVENTION USED ABOVE
+--------------------------------------------------------------------------
+Format: "<what changed>" in plain, specific language - not "update" or
+"fix stuff". Good examples used above:
+
+  "Add Isolation Forest ML anomaly detector"
+  "Tune risk thresholds based on observed score distribution"
+  "Validate full pipeline against real NSL-KDD dataset"
+
+This matters for the supervisor review: the commit log alone should tell
+the story of how the project was built, phase by phase, without needing
+to explain it verbally.
+
+
+--------------------------------------------------------------------------
+4. BRANCH SUMMARY (WHAT THE REPO WILL LOOK LIKE BY DAY 7)
+--------------------------------------------------------------------------
+  main                          - always runnable, one merge per day
+  feature/detection-core        - Day 1 (merged)
+  feature/detection-ensemble    - Day 2 (merged)
+  feature/context-graph         - Day 3 (merged)
+  feature/feature-engineering   - Day 4 (merged)
+  feature/alerting-response     - Day 5 (merged)
+  feature/mlops-and-real-data   - Day 6 (merged)
+  v1.0 (tag)                    - Day 7
+
+====================================================================================
+                                  END OF DOCUMENT
+====================================================================================

@@ -6,10 +6,10 @@ orchestrator and runs end to end today, but most phases are stubs with clear
 `TODO`s. Fill them in one at a time, in this order:
 
 1. `src/ingestion.py` — already functional (loads real data or generates a
-   synthetic fallback stream)
+synthetic fallback stream)
 2. `src/preprocessing.py` — already functional (basic cleaning/scaling)
 3. `src/context.py` — stub (NetworkX graph — build device/context lookups)
-4. `src/feature_engineering.py` — stub (turn cleaned rows into model features)
+4. `src/feature\_engineering.py` — stub (turn cleaned rows into model features)
 5. `src/detection.py` — stub (statistical + ML anomaly detectors)
 6. `src/scoring.py` — stub (combine detector outputs into a risk score)
 7. `src/alerting.py` — stub (turn Warning/Critical scores into alerts)
@@ -20,7 +20,7 @@ orchestrator and runs end to end today, but most phases are stubs with clear
 
 ```bash
 python -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
+source venv/bin/activate        # Windows: venv\\Scripts\\activate
 pip install -r requirements.txt
 ```
 
@@ -32,8 +32,8 @@ records with duration, protocol, byte counts, error rates, etc., which is the
 same shape of data a real ISP pipeline would ingest).
 
 1. Download `KDDTrain+.txt` from the official mirror:
-   https://www.unb.ca/cic/datasets/nsl.html
-   (or any of the GitHub mirrors, e.g. `jmnwong/NSL-KDD-Dataset`)
+https://www.unb.ca/cic/datasets/nsl.html
+(or any of the GitHub mirrors, e.g. `jmnwong/NSL-KDD-Dataset`)
 2. Place it at `data/raw/KDDTrain+.txt`
 
 **Don't have it downloaded yet?** That's fine — `src/ingestion.py` auto-generates
@@ -50,10 +50,25 @@ python -m src.pipeline
 You should see each of the 9 phases print what it received and passed on —
 that's the skeleton working. Each `TODO` in `src/` is one build session.
 
-## Why these choices (see full ADR in the Documentation & Architecture doc)
+## Why these choices (see full ADR in the Documentation \& Architecture doc)
 
-- **Modular monolith, not microservices** — one codebase, one laptop, no infra cost.
-- **NetworkX before Memgraph** — zero setup; swap in Memgraph (Docker) later if needed.
-- **SQLite before PostgreSQL** — zero setup; same upgrade path.
-- **No message broker yet** — `ingestion.py` simulates a stream with a Python
-  generator; swap in MQTT/Kafka later without touching downstream code.
+* **Modular monolith, not microservices** — one codebase, one laptop, no infra cost.
+* **NetworkX before Memgraph** — zero setup; swap in Memgraph (Docker) later if needed.
+* **SQLite before PostgreSQL** — zero setup; same upgrade path.
+* **No message broker yet** — `ingestion.py` simulates a stream with a Python
+generator; swap in MQTT/Kafka later without touching downstream code.
+
+
+
+\## Documentation
+
+
+
+Full workflow documentation and the architecture decision record (tech
+
+stack, diagrams, roadmap) are in `docs/anomaly\_detection\_documentation\_and\_architecture.txt`.
+
+
+
+The day-by-day GitHub development plan is in `docs/anomaly\_detection\_github\_development\_plan.txt`.
+
