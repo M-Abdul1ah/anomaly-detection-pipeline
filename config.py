@@ -31,8 +31,8 @@ KDD_COLUMNS = [
 CATEGORICAL_COLUMNS = ["protocol_type", "service", "flag"]
 
 # ---- risk thresholds (Phase 6) ----
-WARNING_THRESHOLD = 0.5
-CRITICAL_THRESHOLD = 0.8
+WARNING_THRESHOLD = 0.3
+CRITICAL_THRESHOLD = 0.55
 
 # ---- streaming simulation (Phase 1) ----
 SYNTHETIC_ROWS = 500

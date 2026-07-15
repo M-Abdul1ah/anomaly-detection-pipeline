@@ -3,16 +3,14 @@ PHASE 5 - ANOMALY DETECTION ENGINE
 
 Runs three complementary detectors and combines them into one ensemble
 anomaly score per record: statistical (Z-score), ML (Isolation Forest),
-and rule-based (still a TODO).
+and rule-based (serror/same-service pattern).
 """
 
 import pandas as pd
 
 
 def _statistical_score(features: pd.DataFrame) -> pd.Series:
-    """Z-score based statistical detector. Computes how many standard
-    deviations each value is from its column's mean, averages the
-    absolute Z-scores per record, and squeezes the result into 0-1."""
+    """Z-score based statistical detector."""
     numeric_cols = [c for c in features.select_dtypes(include="number").columns if c != "label"]
     if not numeric_cols:
         return pd.Series(0.0, index=features.index)
@@ -23,8 +21,7 @@ def _statistical_score(features: pd.DataFrame) -> pd.Series:
 
 
 def _ml_score(features: pd.DataFrame) -> pd.Series:
-    """Isolation Forest ML detector. Records that get isolated in very
-    few random splits are scored as more anomalous."""
+    """Isolation Forest ML detector."""
     from sklearn.ensemble import IsolationForest
     numeric_cols = [c for c in features.select_dtypes(include="number").columns if c != "label"]
     if not numeric_cols or len(features) < 10:
@@ -37,8 +34,15 @@ def _ml_score(features: pd.DataFrame) -> pd.Series:
 
 
 def _rule_score(features: pd.DataFrame) -> pd.Series:
-    """TODO: implement hand-written behaviour rules."""
-    return pd.Series(0.0, index=features.index)
+    """Rule-based behaviour detector. Flags records where a high
+    connection-error rate combines with an unusually low same-service
+    rate - a classic sign of scanning/attack behaviour rather than a
+    single noisy metric. Columns are already scaled (mean 0, std 1) by
+    preprocessing.py, so thresholds here are in standard-deviation units."""
+    if "serror_rate" not in features.columns or "same_srv_rate" not in features.columns:
+        return pd.Series(0.0, index=features.index)
+    flagged = (features["serror_rate"] > 2) & (features["same_srv_rate"] < -2)
+    return flagged.astype(float)
 
 
 def detect(features: pd.DataFrame) -> pd.DataFrame:
