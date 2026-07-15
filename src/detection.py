@@ -1,37 +1,39 @@
 """
-PHASE 5 — ANOMALY DETECTION ENGINE
+PHASE 5 - ANOMALY DETECTION ENGINE
 
-Real job: run three complementary families of detectors in parallel —
-statistical (Z-score/IQR/EWMA), ML (Isolation Forest, Autoencoder, One-Class
-SVM, LSTM), and behaviour/rule-based — then combine them with an ensemble
-decision, checked against Phase 3's context.
-
-STATUS: stub. Returns a constant score so Phases 6-8 have something to run
-against and the whole pipeline is testable end to end today.
-
-TODO (this is the core of the project — build it in this order):
-  1. Statistical: implement a simple Z-score detector over one or two
-     numeric columns (e.g. src_bytes, count) as `_statistical_score()`.
-  2. ML: fit an IsolationForest (scikit-learn) on the feature DataFrame as
-     `_ml_score()` — this is usually the fastest way to get a real anomaly
-     signal working.
-  3. Behaviour: add 1-2 hand-written rules as `_rule_score()` (e.g. flag if
-     serror_rate is very high AND same_srv_rate is very low).
-  4. Ensemble: combine the three scores in `detect()` below (simple average
-     is fine to start; weight them once you can compare against label).
+Runs three complementary detectors and combines them into one ensemble
+anomaly score per record: statistical (Z-score), ML (Isolation Forest),
+and rule-based (still a TODO).
 """
 
 import pandas as pd
 
 
 def _statistical_score(features: pd.DataFrame) -> pd.Series:
-    """TODO: implement Z-score / IQR / EWMA based scoring."""
-    return pd.Series(0.0, index=features.index)
+    """Z-score based statistical detector. Computes how many standard
+    deviations each value is from its column's mean, averages the
+    absolute Z-scores per record, and squeezes the result into 0-1."""
+    numeric_cols = [c for c in features.select_dtypes(include="number").columns if c != "label"]
+    if not numeric_cols:
+        return pd.Series(0.0, index=features.index)
+    z_scores = (features[numeric_cols] - features[numeric_cols].mean()) / (features[numeric_cols].std() + 1e-9)
+    avg_abs_z = z_scores.abs().mean(axis=1)
+    score = (avg_abs_z / 3).clip(upper=1.0)
+    return score
 
 
 def _ml_score(features: pd.DataFrame) -> pd.Series:
-    """TODO: implement IsolationForest / Autoencoder / One-Class SVM scoring."""
-    return pd.Series(0.0, index=features.index)
+    """Isolation Forest ML detector. Records that get isolated in very
+    few random splits are scored as more anomalous."""
+    from sklearn.ensemble import IsolationForest
+    numeric_cols = [c for c in features.select_dtypes(include="number").columns if c != "label"]
+    if not numeric_cols or len(features) < 10:
+        return pd.Series(0.0, index=features.index)
+    model = IsolationForest(contamination=0.1, random_state=42)
+    model.fit(features[numeric_cols])
+    raw_scores = model.decision_function(features[numeric_cols])
+    normalized = (raw_scores.max() - raw_scores) / (raw_scores.max() - raw_scores.min() + 1e-9)
+    return pd.Series(normalized, index=features.index)
 
 
 def _rule_score(features: pd.DataFrame) -> pd.Series:
@@ -40,13 +42,11 @@ def _rule_score(features: pd.DataFrame) -> pd.Series:
 
 
 def detect(features: pd.DataFrame) -> pd.DataFrame:
-    """Entry point called by the orchestrator for Phase 5.
-    Currently returns a constant 0.0 anomaly_score for every record.
-    """
+    """Entry point called by the orchestrator for Phase 5."""
     result = features.copy()
     stat = _statistical_score(features)
     ml = _ml_score(features)
     rule = _rule_score(features)
-    result["anomaly_score"] = (stat + ml + rule) / 3  # TODO: weight properly later
-    print(f"[detection] (stub) scored {len(result)} records (all 0.0 until detectors are implemented)")
+    result["anomaly_score"] = (stat + ml + rule) / 3
+    print(f"[detection] scored {len(result)} records - min={result['anomaly_score'].min():.3f} mean={result['anomaly_score'].mean():.3f} max={result['anomaly_score'].max():.3f}")
     return result
