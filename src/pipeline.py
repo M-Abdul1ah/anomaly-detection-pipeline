@@ -30,7 +30,7 @@ def run_pipeline():
         classified = score_and_classify(scored)
         alerts = generate_alerts(classified)
         responded = respond(alerts)
-        log_cycle(responded)
+        log_cycle(responded, scored)
 
         if i == 4:  # limit to a few batches for a quick demo run
             break

@@ -3,3 +3,5 @@ __pycache__/
 *.pyc
 data/raw/KDDTrain+.txt
 data/processed/*.db
+mlflow.db
+mlruns/
