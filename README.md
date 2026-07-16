@@ -1,20 +1,19 @@
 # AI-Based Network / Modem Anomaly Detection Pipeline
 
 A 9-phase anomaly detection pipeline, built as a modular monolith (one module per
-phase) per ADR-001. This is the **skeleton** — every phase is wired into the
-orchestrator and runs end to end today, but most phases are stubs with clear
-`TODO`s. Fill them in one at a time, in this order:
+phase) per ADR-001. All 9 phases are implemented and wired into the orchestrator,
+running end to end on real NSL-KDD data (with a synthetic fallback if the dataset
+isn't present):
 
-1. `src/ingestion.py` — already functional (loads real data or generates a
-synthetic fallback stream)
-2. `src/preprocessing.py` — already functional (basic cleaning/scaling)
-3. `src/context.py` — stub (NetworkX graph — build device/context lookups)
-4. `src/feature\_engineering.py` — stub (turn cleaned rows into model features)
-5. `src/detection.py` — stub (statistical + ML anomaly detectors)
-6. `src/scoring.py` — stub (combine detector outputs into a risk score)
-7. `src/alerting.py` — stub (turn Warning/Critical scores into alerts)
-8. `src/response.py` — stub (log automated/manual response actions)
-9. `src/mlops.py` — stub (retraining/tracking hooks — do this last)
+1. `src/ingestion.py` — loads real data or generates a synthetic fallback stream
+2. `src/preprocessing.py` — basic cleaning/scaling
+3. `src/context.py` — NetworkX graph, service/protocol context lookups
+4. `src/feature_engineering.py` — rolling-window features
+5. `src/detection.py` — Z-score + Isolation Forest + rule-based detectors
+6. `src/scoring.py` — ensemble scoring (`config.py`: WARNING ≥ 0.3, CRITICAL ≥ 0.55)
+7. `src/alerting.py` — SQLite alert log + dedup
+8. `src/response.py` — response routing by severity
+9. `src/mlops.py` — MLflow tracking per cycle
 
 ## Architecture
 
