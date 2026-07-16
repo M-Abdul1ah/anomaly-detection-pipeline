@@ -16,6 +16,64 @@ synthetic fallback stream)
 8. `src/response.py` — stub (log automated/manual response actions)
 9. `src/mlops.py` — stub (retraining/tracking hooks — do this last)
 
+## Architecture
+
+The pipeline runs as a modular monolith — each stage lives in its own file under `src/`, orchestrated by `pipeline.py`, and repeats every monitoring cycle.
+
+```mermaid
+flowchart TD
+    A["<b>Data Ingestion</b><br/>real logs or synthetic<br/>→ raw records"]
+    B["<b>Feature Engineering</b><br/>feature_engineering.py<br/>→ rolling-window features"]
+    C["<b>Detection Engine</b><br/>detection.py<br/>Z-score + Isolation Forest + rule-based<br/>→ per-detector scores"]
+    D["<b>Ensemble Scoring</b><br/>config.py<br/>WARNING ≥ 0.3, CRITICAL ≥ 0.55<br/>→ combined risk score"]
+    E["<b>Context Enrichment</b><br/>context.py<br/>NetworkX service/protocol graph<br/>→ enriched score + history"]
+    F["<b>Alerting</b><br/>alerting.py<br/>SQLite log + dedup<br/>→ alert record"]
+    G["<b>Response Routing</b><br/>response.py<br/>→ action taken"]
+    H["<b>MLOps Logging</b><br/>mlops.py<br/>MLflow local tracking<br/>→ cycle metrics"]
+
+    A --> B --> C --> D --> E --> F --> G --> H
+    H -.->|next monitoring cycle| A
+
+    classDef infra fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+    classDef ml fill:#FAECE7,stroke:#993C1D,color:#4A1B0C;
+    class A,B,E,F,G,H infra;
+    class C,D ml;
+```
+
+### How the code executes each cycle
+
+```mermaid
+sequenceDiagram
+    participant P as pipeline.py
+    participant I as Ingestion
+    participant FE as feature_engineering.py
+    participant D as detection.py
+    participant CFG as config.py
+    participant CX as context.py
+    participant AL as alerting.py
+    participant R as response.py
+    participant ML as mlops.py
+
+    loop Every monitoring cycle
+        P->>I: get next record
+        I-->>P: raw data
+        P->>FE: extract rolling-window features
+        FE-->>P: features
+        P->>D: detect(features)
+        D-->>P: zscore, isolation_forest, rule scores
+        P->>CFG: combine ensemble score
+        CFG-->>P: risk_score
+        P->>CX: enrich(risk_score, features)
+        CX-->>P: enriched score + history
+        P->>P: classify vs WARNING/CRITICAL thresholds
+        P->>AL: log_alert(enriched, classification)
+        AL-->>P: alert record (or dedup skip)
+        P->>R: route(alert)
+        R-->>P: responded
+        P->>ML: log_cycle(responded, scored)
+        ML-->>P: metrics logged to MLflow
+    end
+```
 ## Setup (all free, no Docker required)
 
 ```bash
