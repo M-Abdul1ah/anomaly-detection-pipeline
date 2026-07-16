@@ -32,7 +32,7 @@ CATEGORICAL_COLUMNS = ["protocol_type", "service", "flag"]
 
 # ---- risk thresholds (Phase 6) ----
 WARNING_THRESHOLD = 0.3
-CRITICAL_THRESHOLD = 0.55
+CRITICAL_THRESHOLD = 0.45
 
 # ---- streaming simulation (Phase 1) ----
 SYNTHETIC_ROWS = 500
