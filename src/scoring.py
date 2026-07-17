@@ -1,23 +1,10 @@
 """
-PHASE 6 — RISK SCORING & CLASSIFICATION
+PHASE 6 - RISK SCORING & CLASSIFICATION
 
-Real job: enrich the raw anomaly score with context, estimate confidence,
-predict false-positive likelihood, compute a final risk score/priority, and
-classify each record as Normal / Warning / Critical against thresholds.
-
-STATUS: partially functional — the threshold classification works now
-(reads WARNING_THRESHOLD / CRITICAL_THRESHOLD from config.py), but since
-Phase 5 currently returns 0.0 for everything, every record will show up as
-Normal until detection.py is implemented. That's expected and will resolve
-itself once Phase 5 is filled in.
-
-TODO:
-  1. Once Phase 5 has real detectors, revisit WARNING_THRESHOLD /
-     CRITICAL_THRESHOLD in config.py — the right cutoffs depend on the
-     actual score distribution you get, not a guess made before any model
-     has run.
-  2. Add a confidence/false-positive estimate here (e.g. how far the score
-     is from the threshold, or how much Phase 3 context supports it).
+Classifies each record's anomaly score as Normal / Warning / Critical
+against the configured thresholds, and - since NSL-KDD provides a real
+ground-truth label - compares detections against that label so we can
+report actual accuracy (recall/precision), not just "it runs".
 """
 
 import pandas as pd
@@ -33,10 +20,32 @@ def classify(score: float) -> str:
     return "Normal"
 
 
+def _evaluate_against_ground_truth(result: pd.DataFrame):
+    """NSL-KDD's label column is 'normal' or an attack type. Compare that
+    to whether our pipeline flagged the record (Warning/Critical) to get
+    real precision/recall for this batch."""
+    if "label" not in result.columns:
+        return
+
+    actual_attack = result["label"] != "normal"
+    predicted_attack = result["risk_level"] != "Normal"
+
+    true_positives = (actual_attack & predicted_attack).sum()
+    false_positives = (~actual_attack & predicted_attack).sum()
+    false_negatives = (actual_attack & ~predicted_attack).sum()
+
+    precision = true_positives / (true_positives + false_positives) if (true_positives + false_positives) else 0.0
+    recall = true_positives / (true_positives + false_negatives) if (true_positives + false_negatives) else 0.0
+
+    print(f"[scoring] accuracy this batch - precision={precision:.2f} "
+          f"recall={recall:.2f} (TP={true_positives} FP={false_positives} FN={false_negatives})")
+
+
 def score_and_classify(detected: pd.DataFrame) -> pd.DataFrame:
     """Entry point called by the orchestrator for Phase 6."""
     result = detected.copy()
     result["risk_level"] = result["anomaly_score"].apply(classify)
     counts = result["risk_level"].value_counts().to_dict()
     print(f"[scoring] classified {len(result)} records: {counts}")
+    _evaluate_against_ground_truth(result)
     return result
