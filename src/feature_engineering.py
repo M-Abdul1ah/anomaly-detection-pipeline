@@ -3,9 +3,10 @@ PHASE 4 - FEATURE ENGINEERING
 
 Turns cleaned, context-aware records into the actual inputs the detectors
 use: the existing numeric columns, plus a rolling-window mean/std per
-batch (a simple stand-in for "trend" - how far is this record's key
-metrics from what's typical in this batch), and the two graph-context
-columns from Phase 3 (service history, service degree).
+batch, and the graph-context columns from Phase 3. The 'service' column
+is kept alongside as metadata (not fed into the detectors, since it's
+text, not numeric) so alerting.py can report which service an alert
+belongs to instead of always showing 'unknown'.
 """
 
 import pandas as pd
@@ -13,9 +14,7 @@ import pandas as pd
 
 def _add_rolling_features(features: pd.DataFrame) -> pd.DataFrame:
     """Rolling-window style features: for a couple of key columns, add
-    how far each value is from this batch's own rolling mean. This is a
-    simplified stand-in for a true time-ordered rolling window, since our
-    batches don't carry real timestamps yet."""
+    how far each value is from this batch's own rolling mean."""
     for col in ["src_bytes", "count"]:
         if col in features.columns:
             window = features[col].rolling(window=5, min_periods=1)
@@ -36,6 +35,9 @@ def build_features(batch: pd.DataFrame) -> pd.DataFrame:
 
     features = _add_rolling_features(features)
 
+    if "service" in batch.columns:
+        features["service"] = batch["service"].values
+
     print(f"[feature_engineering] built {features.shape[1]} features "
-          f"(base numeric columns + rolling deviation + graph context)")
+          f"(base numeric columns + rolling deviation + graph context + service metadata)")
     return features
