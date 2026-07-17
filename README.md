@@ -10,7 +10,7 @@ isn't present):
 3. `src/context.py` — NetworkX graph, service/protocol context lookups
 4. `src/feature_engineering.py` — rolling-window features
 5. `src/detection.py` — Z-score + Isolation Forest + rule-based detectors
-6. `src/scoring.py` — ensemble scoring (`config.py`: WARNING ≥ 0.3, CRITICAL ≥ 0.55)
+6. `src/scoring.py` — ensemble scoring (`config.py`: WARNING ≥ 0.3, CRITICAL ≥ 0.45)
 7. `src/alerting.py` — SQLite alert log + dedup
 8. `src/response.py` — response routing by severity
 9. `src/mlops.py` — MLflow tracking per cycle
@@ -117,15 +117,8 @@ generator; swap in MQTT/Kafka later without touching downstream code.
 
 
 
-\## Documentation
+## Documentation
 
+Full workflow documentation and the architecture decision record (tech stack, diagrams, roadmap) are in `docs/anomaly_detection_documentation_and_architecture.txt`.
 
-
-Full workflow documentation and the architecture decision record (tech
-
-stack, diagrams, roadmap) are in `docs/anomaly\_detection\_documentation\_and\_architecture.txt`.
-
-
-
-The day-by-day GitHub development plan is in `docs/anomaly\_detection\_github\_development\_plan.txt`.
-
+The day-by-day GitHub development plan is in `docs/anomaly_detection_github_development_plan.txt`.
