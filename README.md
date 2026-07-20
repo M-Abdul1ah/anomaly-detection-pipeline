@@ -24,7 +24,7 @@ flowchart TD
     A["<b>Data Ingestion</b><br/>real logs or synthetic<br/>→ raw records"]
     B["<b>Feature Engineering</b><br/>feature_engineering.py<br/>→ rolling-window features"]
     C["<b>Detection Engine</b><br/>detection.py<br/>Z-score + Isolation Forest + rule-based<br/>→ per-detector scores"]
-    D["<b>Ensemble Scoring</b><br/>config.py<br/>WARNING ≥ 0.3, CRITICAL ≥ 0.55<br/>→ combined risk score"]
+    D["<b>Ensemble Scoring</b><br/>config.py<br/>WARNING ≥ 0.3, CRITICAL ≥ 0.45<br/>→ combined risk score"]
     E["<b>Context Enrichment</b><br/>context.py<br/>NetworkX service/protocol graph<br/>→ enriched score + history"]
     F["<b>Alerting</b><br/>alerting.py<br/>SQLite log + dedup<br/>→ alert record"]
     G["<b>Response Routing</b><br/>response.py<br/>→ action taken"]
