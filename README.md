@@ -106,7 +106,27 @@ python -m src.pipeline
 
 You should see each of the 9 phases print what it received and passed on —
 that's the skeleton working. Each `TODO` in `src/` is one build session.
+## Scope: Diagram vs. What's Built
 
+Every phase in the original 9-phase diagram exists in this codebase, and
+the overall flow matches exactly. Within a few phases, the number of
+techniques was scaled down to fit a 1-week, zero-budget, no-Docker build
+(see the Architecture Decision Record in `docs/` for why).
+
+| Phase | Diagram | Built | Match |
+|---|---|---|---|
+| 1. Data Ingestion | Real-time streams, device tagging | Real NSL-KDD data + synthetic fallback, batched | Full |
+| 2. Data Preprocessing | Full cleaning/validation pipeline | Cleaning, dedup, scaling | Full |
+| 3. Context Retrieval | MemGraph knowledge graph | NetworkX graph (service/protocol history) | Same concept, lighter tool |
+| 4. Feature Engineering | Statistical, time-series, behavioural, cross-device | Rolling-window features + graph context | Partial |
+| 5. Detection - Statistical | Z-score, IQR, Moving Average, EWMA | Z-score | 1 of 4 |
+| 5. Detection - ML | Isolation Forest, Autoencoder, One-Class SVM, LSTM | Isolation Forest | 1 of 4 |
+| 5. Detection - Behaviour | Rule engine, pattern matching, expert rules | 1 hand-written rule | Simplified |
+| 5. Graph Context Validation | Score adjusted using graph relationships | Context attached but not yet used to adjust score | Gap |
+| 6. Risk Scoring & Classification | Thresholds, Normal/Warning/Critical | Full, plus precision/recall vs. ground truth | Full+ |
+| 7. Alert Management | Correlation, dedup, routing, escalation, dashboard | Dedup + SQLite log | Partial |
+| 8. Response & Remediation | Automated + manual response paths | Simulated automated actions + manual routing | Present |
+| 9. Continuous Learning & MLOps | Active/Reinforcement Learning, retraining, drift, registry, CI/CD | MLflow metric logging | 1 of 8 |
 ## Why these choices (see full ADR in the Documentation \& Architecture doc)
 
 * **Modular monolith, not microservices** — one codebase, one laptop, no infra cost.
