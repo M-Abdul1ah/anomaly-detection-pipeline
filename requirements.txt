@@ -1,4 +1,4 @@
-pandas
+﻿pandas
 numpy
 scikit-learn
 scipy
@@ -7,5 +7,5 @@ streamlit
 mlflow
 pyod
 python-dotenv
-requestspytest
+requests
 pytest
