@@ -5,3 +5,4 @@ data/raw/KDDTrain+.txt
 data/processed/*.db
 mlflow.db
 mlruns/
+.env
