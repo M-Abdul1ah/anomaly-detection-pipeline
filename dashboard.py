@@ -63,7 +63,6 @@ while True:
                 st.markdown(f'<div class="metric-card"><h2 style="margin:0;font-size:30px;color:#ffd166 !important">{warning}</h2><p>WARNING</p></div>', unsafe_allow_html=True)
 
             st.write("")
-
             col_left, col_right = st.columns(2)
             with col_left:
                 st.subheader("Alerts by Risk Level")
@@ -90,4 +89,7 @@ while True:
                 )
 
             st.caption("Critical alerts also trigger a Telegram notification (see src/notifications.py).")
+
     time.sleep(REFRESH_SECONDS)
+
+
