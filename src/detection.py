@@ -1,9 +1,9 @@
 ﻿"""
 PHASE 5 - ANOMALY DETECTION ENGINE
 
-Runs four complementary detectors and combines them into one ensemble
-anomaly score per record: statistical (Z-score), ML (Isolation Forest +
-Autoencoder), and rule-based.
+Runs five complementary detectors and combines them into one ensemble
+anomaly score per record: statistical (Z-score, IQR), ML (Isolation
+Forest + Autoencoder), and rule-based.
 
 Also keeps each detector's individual score as its own column (not just
 the blended average), plus a plain-text "explanation" of which
@@ -15,11 +15,10 @@ Graph context validation: the score is nudged slightly using Phase 3's
 context columns (_context_service_seen_count, _context_service_degree) -
 a first-time-seen service nudges the score UP a little (less trust,
 unknown behavior); a well-established, well-connected service nudges it
-DOWN a little (more trust, established pattern). This closes the "Graph
-Context Validation" gap noted in the README's Diagram vs. Built table.
-Because these two columns now have a deliberate job, they're excluded
-from the raw numeric features fed into the statistical/ML detectors
-below, so they aren't double-counted as noise AND as validation.
+DOWN a little (more trust, established pattern). Because these two
+columns now have a deliberate job, they're excluded from the raw
+numeric features fed into the statistical/ML detectors below, so they
+aren't double-counted as noise AND as validation.
 """
 
 import numpy as np
@@ -31,12 +30,18 @@ import pandas as pd
 _CONTEXT_COLUMNS = ("_context_service_seen_count", "_context_service_degree")
 
 
-def _statistical_score(features: pd.DataFrame) -> pd.Series:
-    """Z-score based statistical detector."""
-    numeric_cols = [
+def _numeric_cols(features: pd.DataFrame) -> list:
+    """Shared helper: numeric columns eligible for the statistical/ML
+    detectors (excludes label and graph-context metadata columns)."""
+    return [
         c for c in features.select_dtypes(include="number").columns
         if c != "label" and c not in _CONTEXT_COLUMNS
     ]
+
+
+def _statistical_score(features: pd.DataFrame) -> pd.Series:
+    """Z-score based statistical detector."""
+    numeric_cols = _numeric_cols(features)
     if not numeric_cols:
         return pd.Series(0.0, index=features.index)
     z_scores = (features[numeric_cols] - features[numeric_cols].mean()) / (features[numeric_cols].std() + 1e-9)
@@ -45,13 +50,39 @@ def _statistical_score(features: pd.DataFrame) -> pd.Series:
     return score
 
 
+def _iqr_score(features: pd.DataFrame) -> pd.Series:
+    """IQR (Interquartile Range) based statistical detector. Unlike
+    Z-score, which uses mean/std and can itself be skewed by outliers,
+    IQR uses percentiles (Q1, Q3), which are more robust to extreme
+    values. A record is scored by how far outside [Q1 - 1.5*IQR,
+    Q3 + 1.5*IQR] each of its values falls, normalized and averaged
+    across columns - giving the ensemble a second, differently-shaped
+    statistical judgment alongside Z-score."""
+    numeric_cols = _numeric_cols(features)
+    if not numeric_cols:
+        return pd.Series(0.0, index=features.index)
+
+    q1 = features[numeric_cols].quantile(0.25)
+    q3 = features[numeric_cols].quantile(0.75)
+    iqr = (q3 - q1).replace(0, 1e-9)  # avoid divide-by-zero on constant columns
+
+    lower_bound = q1 - 1.5 * iqr
+    upper_bound = q3 + 1.5 * iqr
+
+    # How many IQRs outside the bound each value falls (0 if inside bounds)
+    below = (lower_bound - features[numeric_cols]).clip(lower=0) / iqr
+    above = (features[numeric_cols] - upper_bound).clip(lower=0) / iqr
+    outlier_magnitude = (below + above)
+
+    avg_outlier = outlier_magnitude.mean(axis=1)
+    score = (avg_outlier / 3).clip(upper=1.0)  # same normalization scale as Z-score
+    return score
+
+
 def _ml_score(features: pd.DataFrame) -> pd.Series:
     """Isolation Forest ML detector."""
     from sklearn.ensemble import IsolationForest
-    numeric_cols = [
-        c for c in features.select_dtypes(include="number").columns
-        if c != "label" and c not in _CONTEXT_COLUMNS
-    ]
+    numeric_cols = _numeric_cols(features)
     if not numeric_cols or len(features) < 10:
         return pd.Series(0.0, index=features.index)
     model = IsolationForest(contamination=0.1, random_state=42)
@@ -68,10 +99,7 @@ def _autoencoder_score(features: pd.DataFrame) -> pd.Series:
     learned what 'normal' looks like, and struggles on anything unusual."""
     from sklearn.neural_network import MLPRegressor
 
-    numeric_cols = [
-        c for c in features.select_dtypes(include="number").columns
-        if c != "label" and c not in _CONTEXT_COLUMNS
-    ]
+    numeric_cols = _numeric_cols(features)
     if not numeric_cols or len(features) < 10:
         return pd.Series(0.0, index=features.index)
 
@@ -106,17 +134,13 @@ def _graph_context_adjustment(features: pd.DataFrame) -> pd.Series:
     well-established, well-connected service nudges it DOWN slightly
     (more trust, established pattern). Scales gradually rather than a
     hard on/off, and returns a small signed value (-0.05 to +0.05) meant
-    to validate/adjust the four-detector average, not dominate it."""
+    to validate/adjust the detector average, not dominate it."""
     if "_context_service_seen_count" not in features.columns or "_context_service_degree" not in features.columns:
         return pd.Series(0.0, index=features.index)
 
     seen = features["_context_service_seen_count"].clip(lower=0)
     degree = features["_context_service_degree"].clip(lower=0)
 
-    # familiarity: 0 = never seen before / isolated, 1 = well-established
-    # and well-connected. seen_count weighted more heavily than degree
-    # since "have we seen this before" matters more than "how many
-    # protocols does it use".
     familiarity = (seen.clip(upper=20) / 20) * 0.7 + (degree.clip(upper=5) / 5) * 0.3
     adjustment = 0.05 - 0.10 * familiarity
     return adjustment
@@ -125,6 +149,7 @@ def _graph_context_adjustment(features: pd.DataFrame) -> pd.Series:
 # Human-readable names for each core detector, used when building explanations.
 _DETECTOR_LABELS = {
     "score_zscore": "Z-score",
+    "score_iqr": "IQR",
     "score_isoforest": "Isolation Forest",
     "score_autoencoder": "Autoencoder",
     "score_rule": "Rule-based",
@@ -155,6 +180,7 @@ def detect(features: pd.DataFrame) -> pd.DataFrame:
     """Entry point called by the orchestrator for Phase 5."""
     result = features.copy()
     stat = _statistical_score(features)
+    iqr = _iqr_score(features)
     iso_forest = _ml_score(features)
     autoencoder = _autoencoder_score(features)
     rule = _rule_score(features)
@@ -163,12 +189,13 @@ def detect(features: pd.DataFrame) -> pd.DataFrame:
     # Keep each detector's individual score - what makes "why was this
     # flagged?" answerable later, and what alerting.py/the dashboard use.
     result["score_zscore"] = stat
+    result["score_iqr"] = iqr
     result["score_isoforest"] = iso_forest
     result["score_autoencoder"] = autoencoder
     result["score_rule"] = rule
     result["score_graph_context"] = graph_adj
 
-    blended = (stat + iso_forest + autoencoder + rule) / 4
+    blended = (stat + iqr + iso_forest + autoencoder + rule) / 5
     result["anomaly_score"] = (blended + graph_adj).clip(lower=0.0, upper=1.0)
     result["explanation"] = result.apply(_build_explanation, axis=1)
 
