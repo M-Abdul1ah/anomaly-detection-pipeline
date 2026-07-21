@@ -2,11 +2,13 @@
 PHASE 8 - RESPONSE & REMEDIATION
 
 Routes each alert to an automated or manual response path. Critical
-alerts get a simulated automated action logged; everything else routes
-to manual investigation.
+alerts get a simulated automated action logged, plus a Telegram
+notification; everything else routes to manual investigation.
 """
 
 import pandas as pd
+
+from src.notifications import send_critical_alert
 
 
 def _automated_action(row) -> str:
@@ -29,6 +31,7 @@ def respond(alerts: pd.DataFrame) -> pd.DataFrame:
     for _, row in result.iterrows():
         if row["risk_level"] == "Critical":
             actions.append(_automated_action(row))
+            send_critical_alert(row)
         else:
             actions.append("manual investigation")
     result["response_action"] = actions

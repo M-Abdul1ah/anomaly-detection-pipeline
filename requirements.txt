@@ -6,3 +6,5 @@ networkx
 streamlit
 mlflow
 pyod
+python-dotenv
+requests
