@@ -1,9 +1,15 @@
-"""
+﻿"""
 PHASE 5 - ANOMALY DETECTION ENGINE
 
 Runs four complementary detectors and combines them into one ensemble
 anomaly score per record: statistical (Z-score), ML (Isolation Forest +
 Autoencoder), and rule-based.
+
+Also keeps each detector's individual score as its own column (not just
+the blended average), plus a plain-text "explanation" of which
+detector(s) drove each record's score - this is what alerting.py and the
+dashboard use to answer "why was this flagged?" instead of showing a
+single opaque number.
 """
 
 import numpy as np
@@ -69,6 +75,26 @@ def _rule_score(features: pd.DataFrame) -> pd.Series:
     return flagged.astype(float)
 
 
+# Human-readable names for each detector, used when building explanations.
+_DETECTOR_LABELS = {
+    "score_zscore": "Z-score",
+    "score_isoforest": "Isolation Forest",
+    "score_autoencoder": "Autoencoder",
+    "score_rule": "Rule-based",
+}
+
+
+def _build_explanation(row, top_n: int = 2) -> str:
+    """Pick the top_n highest-scoring detectors for this record and format
+    them as a short human-readable string, e.g.
+    'Isolation Forest (0.81), Rule-based (1.00)'."""
+    scores = {col: row[col] for col in _DETECTOR_LABELS}
+    ranked = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)
+    top = ranked[:top_n]
+    parts = [f"{_DETECTOR_LABELS[col]} ({val:.2f})" for col, val in top if val > 0]
+    return ", ".join(parts) if parts else "no single detector dominant"
+
+
 def detect(features: pd.DataFrame) -> pd.DataFrame:
     """Entry point called by the orchestrator for Phase 5."""
     result = features.copy()
@@ -76,6 +102,17 @@ def detect(features: pd.DataFrame) -> pd.DataFrame:
     iso_forest = _ml_score(features)
     autoencoder = _autoencoder_score(features)
     rule = _rule_score(features)
+
+    # Keep each detector's individual score - previously these were local
+    # variables only used for the average, then thrown away. Keeping them
+    # as columns is what makes "why was this flagged?" answerable later.
+    result["score_zscore"] = stat
+    result["score_isoforest"] = iso_forest
+    result["score_autoencoder"] = autoencoder
+    result["score_rule"] = rule
+
     result["anomaly_score"] = (stat + iso_forest + autoencoder + rule) / 4
+    result["explanation"] = result.apply(_build_explanation, axis=1)
+
     print(f"[detection] scored {len(result)} records - min={result['anomaly_score'].min():.3f} mean={result['anomaly_score'].mean():.3f} max={result['anomaly_score'].max():.3f}")
     return result
