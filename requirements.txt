@@ -8,3 +8,4 @@ mlflow
 pyod
 python-dotenv
 requestspytest
+pytest
